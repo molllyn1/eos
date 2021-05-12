@@ -220,8 +220,10 @@ struct state_history_plugin_impl : std::enable_shared_from_this<state_history_pl
 
       void send_update(const block_state_ptr& head_block_state,  get_blocks_result_v1&& result) {
          need_to_send_update = true;
-         if (!max_messages_in_flight() )
+         if (!max_messages_in_flight() ) {
+            fc_ilog(_log, "send_update returns for !max_messages_in_flight()");
             return;
+         }
          get_blocks_request_v0& block_req =  *current_request;
          
          auto& chain              = plugin->chain_plug->chain();
@@ -229,8 +231,12 @@ struct state_history_plugin_impl : std::enable_shared_from_this<state_history_pl
          uint32_t current =
                block_req.irreversible_only ? result.last_irreversible.block_num : result.head.block_num;
 
-         if (block_req.start_block_num > current || block_req.start_block_num >= block_req.end_block_num )
+         if (block_req.start_block_num > current || block_req.start_block_num >= block_req.end_block_num ) {
+            fc_ilog(_log, "send_update returns for block_req.start_block_num (${start_block_num}) > current(${current}) ||"
+                           " block_req.start_block_num (${start_block_num}) >= block_req.end_block_num (${end_block_num}) ",
+                           ("current", current)("start_block_num", block_req.start_block_num)("end_block_num", block_req.end_block_num));
             return;
+         }
          
          auto& block_num = block_req.start_block_num;
          auto block_id  = plugin->get_block_id(block_num);
@@ -274,6 +280,7 @@ struct state_history_plugin_impl : std::enable_shared_from_this<state_history_pl
       }
 
       void send_update(const block_state_ptr& head_block_state) override {
+         fc_ilog(_log, "send_update with head_block_state block_num=${block_num}", ("block_num", (head_block_state->block ? head_block_state->block_num : 0)) );
          if (head_block_state->block) {
             get_blocks_result_v1 result;
             result.head = { head_block_state->block_num, head_block_state->id };
@@ -282,6 +289,7 @@ struct state_history_plugin_impl : std::enable_shared_from_this<state_history_pl
       }
 
       void send_update(bool changed = false) {
+         fc_ilog(_log, "send_update(${changed}) max_messages_in_flight=${max_messages_in_flight})", ("changed", changed )("max_messages_in_flight", max_messages_in_flight()));
          if (changed)
             need_to_send_update = true;
          if (!need_to_send_update || !max_messages_in_flight())
