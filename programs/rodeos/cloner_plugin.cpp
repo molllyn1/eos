@@ -42,6 +42,8 @@ struct cloner_config : ship_client::connection_config {
    eosio::name filter_name = {}; // todo: remove
    std::string filter_wasm = {}; // todo: remove
    bool        profile = false;
+   int         block_request_flags = ship_client::request_block | ship_client::request_traces |
+                                       ship_client::request_deltas;
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
    eosio::chain::eosvmoc::config eosvmoc_config;
@@ -126,8 +128,7 @@ struct cloner_session : ship_client::connection_callbacks, std::enable_shared_fr
                                   " but nodeos has chain " + eosio::convert_to_json(status.chain_id));
       ilog("request blocks");
       connection->request_blocks(status, std::max(config->skip_to, rodeos_snapshot->head + 1), get_positions(),
-                                 ship_client::request_block | ship_client::request_traces |
-                                       ship_client::request_deltas);
+                                 config->block_request_flags);
       return true;
    }
 
@@ -253,6 +254,7 @@ void cloner_plugin::set_program_options(options_description& cli, options_descri
    op("filter-name", bpo::value<std::string>(), "Filter name");
    op("filter-wasm", bpo::value<std::string>(), "Filter wasm");
    op("profile-filter", bpo::bool_switch(), "Enable filter profiling");
+   op("request-irreversible-only", bpo::bool_switch(), "Request irreversible blocks only");
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
    op("eos-vm-oc-cache-size-mb",
@@ -311,6 +313,9 @@ void cloner_plugin::plugin_initialize(const variables_map& options) {
                                   options["telemetry-service-name"].as<std::string>(),
                                   options["telemetry-timeout-us"].as<uint32_t>() );
       }
+
+      if (options.count("request-irreversible-only")) 
+         my->config->block_request_flags |= ship_client::request_irreversible_only;
    }
    FC_LOG_AND_RETHROW()
 }
